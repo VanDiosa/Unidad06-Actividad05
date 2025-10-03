@@ -177,20 +177,20 @@ function handleParticles() {
 function draw() {
     //mensajes de estado
     if (!isConnected) {
-    showStatus('Buscando latidos…', color(255, 215, 0)); // un dorado más brillante
+    showStatus('Buscando latidos…', color(255)); // un dorado más brillante
     return;
     }
 
     if (!hasRemoteData) {
-        showStatus('Esperando al otro corazón…', color(255, 215, 0));
+        showStatus('Esperando al otro corazón…', color(255));
         return;
     }
 
     if (!isFullySynced) {
-        showStatus('Entrelazando latidos…', color(255, 215, 0));
+        showStatus('Entrelazando latidos…', color(255,));
         return;
     }
-    
+
     checkWindowPosition();
     
      //calcular posicion del corazon remoto
