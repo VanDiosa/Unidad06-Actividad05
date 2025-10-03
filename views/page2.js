@@ -177,7 +177,7 @@ function handleParticles() {
 function draw() {
     //mensajes de estado
     if (!isConnected) {
-    showStatus('Buscando latidos…', color(255)); // un dorado más brillante
+    showStatus('Buscando latidos…', color(255)); 
     return;
     }
 
