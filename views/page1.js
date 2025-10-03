@@ -20,6 +20,14 @@ let hasRemoteData = false;
 let isFullySynced = false;
 let connectionTimeout;
 
+//cadenas de efectos visuales
+let particles = [];
+let explosionParticles = [];
+let shockwaves = [];   
+
+//estado de la colision
+let wasColliding = false;
+
 function setup() {
     createCanvas(windowWidth, windowHeight);
     frameRate(60);
@@ -30,7 +38,6 @@ function setup() {
         isConnected = true;
         socket.emit('win1update', currentPageData, socket.id);
         
-        // Solicitar sincronización después de un breve delay
         setTimeout(() => {
             socket.emit('requestSync');
         }, 500);
@@ -88,11 +95,85 @@ function checkWindowPosition() {
         previousPageData = currentPageData;
     }
 }
+//funcion para q los objetos sean corazones
+function drawHeart(x, y, size, col) {
+    push();
+    translate(x, y - size/3);
+    fill(col);
+    noStroke();
+    beginShape();
+    vertex(0, size / 4);
+    bezierVertex(size / 2, -size / 2, size, size / 3, 0, size);
+    bezierVertex(-size, size / 3, -size / 2, -size / 2, 0, size / 4);
+    endShape(CLOSE);
+    pop();
+}
 
+//particulas
+function spawnParticles(x, y, type = "aura", targetX = 0, targetY = 0) {
+    if (type === "aura") {
+        for (let i = 0; i < 2; i++) {
+            let angle = random(TWO_PI);
+            let r = random(40, 80);
+            particles.push({
+                x: x + cos(angle) * r,
+                y: y + sin(angle) * r,
+                size: random(2, 5),
+                life: 200
+            });
+        }
+    } else if (type === "connection") {
+        for (let i = 0; i < 3; i++) {
+            let t = random();
+            let px = lerp(x, targetX, t) + random(-10, 10);
+            let py = lerp(y, targetY, t) + random(-10, 10);
+            particles.push({ x: px, y: py, size: random(2, 5), life: 200 });
+        }
+    }
+}
+
+function triggerShockwave(x, y) {
+    shockwaves.push({ x, y, r: 0, alpha: 255 });
+}
+
+function handleParticles() {
+    // aura + conexión
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        fill(255, 220, 100, p.life);
+        noStroke();
+        ellipse(p.x, p.y, p.size);
+        p.life -= 3;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    // explosiones
+    for (let i = explosionParticles.length - 1; i >= 0; i--) {
+        let p = explosionParticles[i];
+        fill(red(p.col), green(p.col), blue(p.col), p.life);
+        noStroke();
+        ellipse(p.x, p.y, p.size);
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 5;
+        if (p.life <= 0) explosionParticles.splice(i, 1);
+    }
+
+    // ondas expansivas
+    for (let i = shockwaves.length - 1; i >= 0; i--) {
+        let s = shockwaves[i];
+        noFill();
+        stroke(255, 230, 120, s.alpha);
+        strokeWeight(3);
+        ellipse(s.x, s.y, s.r * 2);
+        s.r += 6;
+        s.alpha -= 6;
+        if (s.alpha <= 0) shockwaves.splice(i, 1);
+    }
+}
 
 function draw() {
-    background(220);
-    
+    //mensajes de estado
     if (!isConnected) {
         showStatus('Conectando al servidor...', color(255, 165, 0));
         return;
@@ -108,38 +189,63 @@ function draw() {
         return;
     }
 
-    // Solo dibujar cuando esté completamente sincronizado
-    drawCircle(point1[0], point1[1]);
     checkWindowPosition();
     
-    let vector1 = createVector(currentPageData.x, currentPageData.y);
-    let vector2 = createVector(remotePageData.x, remotePageData.y);
-    let resultingVector = createVector(vector2.x - vector1.x, vector2.y - vector1.y);
+     //calcular posicion del corazon remoto
+    let remoteX = map(remotePageData.x + remotePageData.width / 2, currentPageData.x, currentPageData.x + currentPageData.width, 0, width);
+    let remoteY = map(remotePageData.y + remotePageData.height / 2, currentPageData.y, currentPageData.y + currentPageData.height, 0, height);
     
-    stroke(50);
-    strokeWeight(20);
-    drawCircle(resultingVector.x + remotePageData.width / 2, resultingVector.y + remotePageData.height / 2);
-    line(point1[0], point1[1], resultingVector.x + remotePageData.width / 2, resultingVector.y + remotePageData.height / 2);
+    //distancia entre corazones
+    let distBetween = dist(point1[0], point1[1], remoteX, remoteY);
+
+    //fondo gris que se vuelve rojo
+    let bgCol = lerpColor(color(80), color(200, 0, 0), map(distBetween, 800, 0, 0, 1, true));
+    background(bgCol);
+
+    //tamaño con efecto de palpitar
+    let pulse = sin(frameCount * 0.15) * 6;
+    let baseSize = map(distBetween, 800, 0, 50, 200, true);
+    let currentSize = baseSize + pulse;
+
+    //dibujar corazones
+    drawHeart(point1[0], point1[1], currentSize, color(0));
+    drawHeart(remoteX, remoteY, currentSize, color(255));
+
+    // partículas aura + conexión con menos frecuencia
+    if (frameCount % 2 === 0) {
+        spawnParticles(point1[0], point1[1], "aura");
+        spawnParticles(remoteX, remoteY, "aura");
+    }
+    if (frameCount % 4 === 0) {
+        spawnParticles(point1[0], point1[1], "connection", remoteX, remoteY);
+    }
+
+    handleParticles();
+
+    let colliding = distBetween < 50;
+
+    //mientras esten colisionando, siguen generando ondas expansivas
+    if (colliding) {
+        if (frameCount % 15 === 0) {
+            triggerShockwave((point1[0] + remoteX) / 2, (point1[1] + remoteY) / 2);
+        }
+    }
+
+    wasColliding = colliding;
 }
+
 
 function showStatus(message, statusColor) {
     textSize(24);
     textAlign(CENTER, CENTER);
     noStroke();
-    // Dibujar rectángulo de fondo para el texto
-    fill(0, 0, 0, 150); // Negro semi-transparente
+    fill(0, 0, 0, 150);
     rectMode(CENTER);
     let textW = textWidth(message) + 40;
     let textH = 40;
     rect(width / 2, 1*height / 6, textW, textH, 10);
-    // Dibujar el texto
     fill(statusColor);
     text(message, width / 2, 1*height / 6);
-}
-
-function drawCircle(x, y) {
-    fill(255, 0, 0);
-    ellipse(x, y, 150, 150);
 }
 
 function windowResized() {
