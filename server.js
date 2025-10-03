@@ -23,15 +23,15 @@ app.get('/page2', (req, res) => {
 });
 
 io.on('connection', (socket) => {
-    console.log('A user connected - ID:', socket.id);
+    console.log('Conexión establecida- ID:', socket.id);
     connectedClients.set(socket.id, { page: null, synced: false });
     
     socket.on('disconnect', () => {
-        console.log('User disconnected - ID:', socket.id);
+        console.log('El corazón de un usuario se ha desconectado - ID:', socket.id);
         connectedClients.delete(socket.id);
         syncedClients.delete(socket.id);
         // Notificar a otros clientes que se perdió la sincronización
-        socket.broadcast.emit('peerDisconnected');
+        socket.broadcast.emit('El otro corazón perdió conexión');
     });
 
     socket.on('win1update', (window1, sendid) => {
@@ -89,18 +89,18 @@ function checkAndNotifySyncStatus() {
     const allClientsSynced = Array.from(connectedClients.keys()).every(id => syncedClients.has(id));
     const hasMinimumClients = connectedClients.size >= 2;
 
-    console.log(`Debug - Connected clients: ${connectedClients.size}, Page1: ${page1Clients.length}, Page2: ${page2Clients.length}, Synced: ${syncedClients.size}`);
+    console.log(`Estado de depuración - Clientes conectados: ${connectedClients.size}, Page1: ${page1Clients.length}, Page2: ${page2Clients.length}, Synced: ${syncedClients.size}`);
 
     
     if (bothPagesConnected && allClientsSynced && hasMinimumClients) {
         io.emit('fullySynced', true);
-        console.log('All clients are fully synced');
+        console.log('Todos los corazones están sincronizados');
     } else {
         io.emit('fullySynced', false);
-        console.log(`Sync status: pages=${bothPagesConnected}, synced=${allClientsSynced}, clients=${connectedClients.size}`);
+        console.log(`Estado de sincronización: pages=${bothPagesConnected}, synced=${allClientsSynced}, clients=${connectedClients.size}`);
     }
 }
 
 server.listen(port, () => {
-    console.log(`Server is listening on http://localhost:${port}`);
+    console.log(`Servidor escuchando en http://localhost:${port}`);
 });
